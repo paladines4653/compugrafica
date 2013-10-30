@@ -1,0 +1,308 @@
+#include "opengl.c"
+#include "openal.c"
+#include "math.c"
+#include "model.c"
+#include "fonts.c"
+#include "camera.c"
+#include "terrain.c"
+#include "pSystem.c"
+#include "sprite.c"
+#include "shader.c"
+#include "shadow.c"
+#include "skybox.c"
+#include "collision.c"
+ 
+
+/* Especificaciones */
+#define WIDTH      1440
+#define HEIGHT     900
+#define BPP        32
+#define DEPTH      16
+#define FULLSCREEN GL_TRUE
+#define VSYNC      GL_TRUE
+
+GLfloat fogU    =  0.0f;
+GLfloat rainV   =  0.0f;
+GLfloat bloodV  =  0.0f;
+GLfloat bloodVel=  0.0f;
+GLfloat rainU   =  0.0f;
+GLfloat angle   =  0.0f;
+VECTOR posObj   = {0.0f,0.0f,0.0f};
+
+/* Cámara*/
+CAMERA cam = {
+	{50.0f, 20.0f, 630.0f},    //Posición
+	{1.0f, 0.0f, 0.0f},        //Right
+	{0.0f, 1.0f, 0.0f},        //Up
+	{0.0f, 0.0f, -1.0f},        //Look
+	
+	GL_FALSE, GL_FALSE,        //Walk
+	GL_FALSE, GL_FALSE,        //Strafe
+	GL_FALSE, GL_FALSE,        //Fly
+	GL_FALSE, GL_FALSE, 60.0f,  //Pitch
+	GL_FALSE, GL_FALSE,        //Jaw
+	GL_FALSE, GL_FALSE, 20.0f  //Roll
+	
+	};
+
+GLfloat velocity  = 30.0f;
+GLfloat sensibility  =30.0f;
+
+/* Terreno */
+TERRAIN  terrain;
+MATERIAL terrainMtrl = {GRAY, WHITE, BLACK, BLACK, 1.0};
+DIRLIGHT dirLight = { PALE, WHITE, BLACK, {0.0f, 1.0f, 0.0f } };
+ 
+/*SkyBox*/
+SKYBOX skybox;
+BOX    skyboxBox = {{0.0f, 0.0f,0.0f},{630.0f,300.0f,630.0f}};
+COLOR  skyboxColor=WHITE;
+
+
+
+
+/*** Inicialización de recursos ***/
+void Init( void )
+{
+    // Luz global
+    COLOR    ambColor = BLACK;
+    
+    // Inicio OpenGL
+    InitOpenGL( WIDTH, HEIGHT, BPP, DEPTH, FULLSCREEN );
+    SetOpenGL( WIDTH, HEIGHT, (GLfloat*)&ambColor, (GLfloat*)&ambColor );
+    
+    // Incio OpenAL
+    InitOpenAL( NULL );
+    
+    // Escondo el cursor
+    SDL_ShowCursor( SDL_DISABLE );
+    
+    //Transparencia
+    glBlendEquation( GL_ADD);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    
+
+    // Terreno
+    InitTerrain(&terrain,"resources/coastMountain64.raw", NULL,GL_FALSE, &terrainMtrl,64,64,10.0f,1.0f);
+    // SKYBOX
+    InitSkybox(&skybox,"textures/skybox.png");
+    
+}
+
+/*** Liberación de recursos ***/
+void Free( void )
+{
+    //Terreno
+    FreeTerrain(&terrain);
+    //Skybox
+    FreeSkybox(&skybox);
+    // Último
+    FreeOpenAL();
+    FreeOpenGL();
+}
+
+/*** Procesamiento de los dispositivos de entrada ***/
+void Input( float elapsed )
+{
+    SDL_Event event;
+    /* Proceso los eventos de input hasta que no haya más */
+    while( SDL_PollEvent( &event ) )
+    {
+        switch( event.type )
+        {
+            case SDL_KEYUP:
+                switch( event.key.keysym.sym )
+                {
+                     case SDLK_ESCAPE:
+                        break;
+                    case SDLK_F6:
+                        break;
+                    case SDLK_w:
+                        cam.walk = GL_FALSE;
+                        break;
+                    case SDLK_s:
+                        cam.walkinv= GL_FALSE;
+                        break;
+                        
+                    case SDLK_d:
+                        cam.strafe= GL_FALSE;
+                        break;
+
+                    case SDLK_a:
+                        cam.strafeinv= GL_FALSE;
+                        break;
+
+                        
+                                          
+                        
+                        
+                    default:
+                        PrintError( "Unhandled KEYUP event", GL_TRUE );
+                }
+                break;
+                
+            case SDL_KEYDOWN:
+                switch( event.key.keysym.sym )
+                {
+                    case SDLK_ESCAPE:
+                        break;
+                    case SDLK_F6:
+                        break;
+                    case SDLK_w:
+                        cam.walk = GL_TRUE;
+                        break;
+                    case SDLK_s:
+                        cam.walkinv= GL_TRUE;
+                        break;
+                        
+                    case SDLK_d:
+                        cam.strafe= GL_TRUE;
+                        break;
+
+                    case SDLK_a:
+                        cam.strafeinv= GL_TRUE;
+                        break;
+
+                        
+                                            
+                        
+                    default:
+                        PrintError( "Unhandled KEYDOWN event", GL_TRUE );
+                }
+                break;
+            
+            /* Botones del mouse */
+            case SDL_MOUSEBUTTONUP:
+                switch( event.button.button )
+                {
+                    case SDL_BUTTON_LEFT:
+                        break;
+                    default:
+                        PrintError( "Unhandled MOUSEBUTTONUP event", GL_TRUE );
+                }
+                break;
+            
+            case SDL_MOUSEBUTTONDOWN:
+                switch( event.button.button )
+                {
+                    case SDL_BUTTON_LEFT:
+                        break;
+                    default:
+                        PrintError( "Unhandled MOUSEBUTTONDOWN event", GL_TRUE );
+                }
+                break;
+            
+                
+            /* Movimiento del mouse */
+            case SDL_MOUSEMOTION:
+                {
+                    /* Capturo los movimientos */
+                    GLfloat xrel, yrel;
+                    xrel = (GLfloat)event.motion.xrel;
+                    yrel = (GLfloat)event.motion.yrel;
+                    
+                    if(xrel !=0 && xrel> -100 && xrel < 100)
+						Yaw(&cam,xrel*elapsed*sensibility,GL_TRUE);
+                    if(yrel !=0 && yrel> -100 && yrel < 100)
+						Pitch(&cam,yrel*elapsed*sensibility,GL_TRUE);
+                }
+                break;
+                
+            default:
+                PrintError( "Unhandled type of event", GL_TRUE );
+        }
+        
+        /* Borro el mensaje para evitar procesarlo de nuevo */
+        memset( &event, 0, sizeof(SDL_Event) );
+    }
+}
+
+/*** Procesamiento de la lógica del juego ***/
+void Logic( float elapsed )
+{
+    void Logic (float elapsed);
+    
+/*Cámara*/
+if( cam.walk )
+	Walk( &cam,velocity * elapsed, GL_TRUE);
+if( cam.walkinv )
+	Walk( &cam,-velocity * elapsed, GL_TRUE);
+if( cam.strafe )
+	Strafe( &cam, velocity * elapsed, GL_TRUE);
+if( cam.strafeinv )
+	Strafe( &cam, -velocity * elapsed, GL_TRUE);
+	
+	cam.pos.y=GetHeight( &terrain, cam.pos.x, cam.pos.z ) + 5.0f;
+}
+
+/*** Procesamiento de cada cuadro de sonido ***/
+void Sound( float elapsed )
+{
+}
+
+/*** Procesamiento de cada cuadro ***/
+void Video( float elapsed )
+{
+    /* Limpio la pantalla */
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT );
+    
+    /* Perspectiva */
+    glMatrixMode( GL_PROJECTION );
+    glLoadIdentity();
+    gluPerspective( 45.0f,                           // Ángulo de visión vertical
+                   (GLfloat)WIDTH / (GLfloat)HEIGHT, // Aspecto
+                   1.0f,                             // Plano cercano
+                   1500.0f );                        // Plano lejano
+    
+    /* Cámara */
+    glMatrixMode( GL_MODELVIEW );
+    glLoadIdentity();
+
+	VECTOR dir = SumVector(cam.pos, cam.look);
+    gluLookAt( cam.pos.x, cam.pos.y,  cam.pos.z,   // Posición
+               dir.x, dir.y, dir.z,   			   // Dirección
+               0.0f, 1.0f,  0.0f ); 		       // Arriba
+    
+    
+    /*Luz*/
+    glPushMatrix();
+    SetDirLight(GL_LIGHT0, &dirLight);
+    glEnable (GL_LIGHT0);
+    glPopMatrix();
+    
+    
+    /*Terreno*/
+    glPushMatrix();
+    SetMaterial( &terrain.material );
+    glBindTexture(GL_TEXTURE_2D, terrain.textureID);
+    glCallList( terrain.terrainList );
+    glPopMatrix();
+    
+    
+    
+    
+   
+    
+    /*SkyBox*/
+    glPushMatrix();
+    RenderSkybox(&skybox, &skyboxBox, &skyboxColor);
+    glPopMatrix();
+    
+    
+    /* Ejecutar comandos en cola */
+    glFlush();
+    
+    /* BackBuffer=FrontBuffer(flip) */
+    SDL_GL_SwapBuffers();
+}
+
+/*** Loop ***/
+void Loop( float elapsed )
+{
+    /* Input, Lógica, Sonido y Video */
+    Input( elapsed );
+    Logic( elapsed );
+    Sound( elapsed );
+    Video( elapsed );
+}

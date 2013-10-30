@@ -1,0 +1,438 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1187\cocoasubrtf390
+{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red100\green56\blue32;\red196\green26\blue22;\red0\green116\blue0;
+\red28\green0\blue207;\red63\green110\blue116;\red170\green13\blue145;\red92\green38\blue153;\red38\green71\blue75;
+\red46\green13\blue110;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\deftab529
+\pard\tx529\pardeftab529\pardirnatural
+
+\f0\fs22 \cf2 \CocoaLigature0 #include \cf3 "libs/opengl.c"\cf2 \
+#include \cf3 "libs/openal.c"\cf2 \
+#include \cf3 "libs/math.c"\cf2 \
+#include \cf3 "libs/fonts.c"\cf2 \
+#include \cf3 "libs/camera.c"\cf2 \
+#include \cf3 "libs/terrain.c"\cf2 \
+#include \cf3 "libs/pSystem.c"\cf2 \
+#include \cf3 "libs/sprite.c"\cf2 \
+#include \cf3 "libs/shader.c"\cf2 \
+#include \cf3 "libs/shadow.c"\cf2 \
+#include \cf3 "libs/skybox.c"\cf2 \
+#include \cf3 "libs/model.c"\cf2 \
+#include \cf3 "libs/collision.c"\cf2 \
+\cf0 \
+\
+\cf4 /* Especificaciones */\cf0 \
+\cf2 #define WIDTH      \cf5 1024\cf2 \
+#define HEIGHT     \cf5 768\cf2 \
+#define BPP        \cf5 32\cf2 \
+#define DEPTH      \cf5 16\cf2 \
+#define FULLSCREEN GL_FALSE\
+#define VSYNC      GL_FALSE\
+\cf0 \
+\cf4 // Luz direccional\cf0 \
+\cf6 DIRLIGHT\cf0  dirLight = \{ \cf2 PALE\cf0 , \cf2 WHITE\cf0 , \cf2 WHITE\cf0 , \{ \cf5 0.0f\cf0 , \cf5 1.0f\cf0 , \cf5 1.0f\cf0  \} \};\
+\
+\cf4 // Fuente y sus atributos\cf0 \
+\cf6 FONT\cf0      arialFont;\
+\cf6 COLOR\cf0     fontColor = \cf2 WHITE\cf0 ;\
+\cf7 char\cf0      fpsText[\cf5 10\cf0 ];\
+\
+\cf4 // C\'e1mara\cf0 \
+\cf6 CAMERA\cf0  cam = \{\
+    \{ \cf5 50.0f\cf0 , \cf5 20.0f\cf0 , \cf5 600.0f\cf0  \},  \cf4 // Posici\'f3n\cf0 \
+    \{  \cf5 1.0f\cf0 ,  \cf5 0.0f\cf0 ,   \cf5 0.0f\cf0  \},  \cf4 // Right\cf0 \
+    \{  \cf5 0.0f\cf0 ,  \cf5 1.0f\cf0 ,   \cf5 0.0f\cf0  \},  \cf4 // Up\cf0 \
+    \{  \cf5 0.0f\cf0 ,  \cf5 0.0f\cf0 ,  -\cf5 1.0f\cf0  \},  \cf4 // Look\cf0 \
+    \cf2 GL_FALSE\cf0 , \cf2 GL_FALSE\cf0 ,        \cf4 // Walk\cf0 \
+    \cf2 GL_FALSE\cf0 , \cf2 GL_FALSE\cf0 ,        \cf4 // Strafe\cf0 \
+    \cf2 GL_FALSE\cf0 , \cf2 GL_FALSE\cf0 ,        \cf4 // Fly\cf0 \
+    \cf2 GL_FALSE\cf0 , \cf2 GL_FALSE\cf0 , \cf5 60.0f\cf0 , \cf4 // Pitch\cf0 \
+    \cf2 GL_FALSE\cf0 , \cf2 GL_FALSE\cf0 ,        \cf4 // Yaw\cf0 \
+    \cf2 GL_FALSE\cf0 , \cf2 GL_FALSE\cf0 , \cf5 20.0f\cf0   \cf4 // Roll\cf0 \
+\};\
+\cf8 GLfloat\cf0    velMov    = \cf5 60.0f\cf0 ;\
+\cf8 GLfloat\cf0    senMov    = \cf5 30.0f\cf0 ;\
+\cf8 GLfloat\cf0    zoomLevel = \cf5 1.0f\cf0 ;\
+\cf8 GLboolean\cf0  zoomState = \cf2 GL_FALSE\cf0 , zoomIn = \cf2 GL_FALSE\cf0 , zoomOut = \cf2 GL_FALSE\cf0 ;\
+\cf8 GLboolean\cf0  runState  = \cf2 GL_FALSE\cf0 , restState = \cf2 GL_FALSE\cf0 ;\
+\cf8 GLfloat\cf0    runTime   = \cf5 2.0f\cf0 , runLimit = \cf5 2.0f\cf0 ;\
+\
+\cf4 // Terreno & Skybox\cf0 \
+\cf8 GLuint\cf0    posXTerrain = \cf5 0\cf0 , posZTerrain = \cf5 0\cf0 ;\
+\cf6 TERRAIN\cf0   terrain;\
+\cf6 MATERIAL\cf0  terrainMtrl = \{ \cf2 WHITE\cf0 , \cf2 WHITE\cf0 , \cf2 BLACK\cf0 , \cf2 BLACK\cf0 , \cf5 0.0f\cf0  \};\
+\cf6 SKYBOX\cf0    skybox;\
+\cf6 BOX\cf0       skyboxBox   = \{ \{ \cf5 0.0f\cf0 , \cf5 0.0f\cf0 , \cf5 0.0f\cf0  \}, \{\cf5 945.0f\cf0 , \cf5 300.0f\cf0 , \cf5 945.0f\cf0  \} \};\
+\cf6 COLOR\cf0     skyboxColor = \cf2 WHITE\cf0 ;\
+\
+\cf4 // Modelo\cf0 \
+\cf6 MODEL\cf0      door;\
+\cf6 VOLUMES\cf0    doorVolumes;\
+\cf8 GLboolean\cf0  doorState = \cf2 GL_FALSE\cf0 ;\
+\
+\cf4 // Texturas\cf0 \
+\cf8 GLuint\cf0  mapTex   = \cf5 0\cf0 ;\
+\cf8 GLuint\cf0  dotTex   = \cf5 0\cf0 ;\
+\cf8 GLuint\cf0  barTex   = \cf5 0\cf0 ;\
+\cf8 GLuint\cf0  scopeTex = \cf5 0\cf0 ;\
+\
+\
+\cf4 /*** Inicializaci\'f3n de recursos ***/\cf0 \
+\cf7 void\cf0  Init( \cf7 void\cf0  )\
+\{\
+    \cf4 // Luz global\cf0 \
+    \cf6 COLOR\cf0     ambColor = \cf2 BLACK\cf0 ;\
+    \
+    \cf4 // Inicio OpenGL\cf0 \
+    \cf9 InitOpenGL\cf0 ( \cf2 WIDTH\cf0 , \cf2 HEIGHT\cf0 , \cf2 BPP\cf0 , \cf2 DEPTH\cf0 , \cf2 FULLSCREEN\cf0 , \cf2 VSYNC\cf0  );\
+    \cf9 SetOpenGL\cf0 ( \cf2 WIDTH\cf0 , \cf2 HEIGHT\cf0 , (\cf8 GLfloat\cf0 *)&ambColor, (\cf8 GLfloat\cf0 *)&ambColor );\
+    \
+    \cf4 // Incio OpenAL\cf0 \
+    \cf9 InitOpenAL\cf0 ( \cf7 NULL\cf0  );\
+    \
+    \cf4 // Escondo el cursor\cf0 \
+    \cf10 SDL_ShowCursor\cf0 ( \cf2 SDL_DISABLE\cf0  );\
+    \
+    \cf4 // Habilitar la iluminaci\'f3n\cf0 \
+    \cf10 glEnable\cf0 ( \cf2 GL_LIGHTING\cf0  );\
+    \
+    \cf4 // Habilitar el modo de transparencia\cf0 \
+    \cf10 glBlendEquation\cf0 ( \cf2 GL_FUNC_ADD\cf0  );\
+    \cf10 glBlendFunc\cf0 ( \cf2 GL_SRC_ALPHA\cf0 , \cf2 GL_ONE_MINUS_SRC_ALPHA\cf0  );\
+    \
+    \cf4 // Inicializaci\'f3n de la fuente\cf0 \
+    \cf9 InitFont\cf0 ( \cf2 WIDTH\cf0 , \cf2 HEIGHT\cf0  );\
+    \cf6 arialFont\cf0  = \cf9 OpenFont\cf0 ( \cf3 "fonts/arial.ttf"\cf0 , \cf5 24\cf0  );\
+    \cf9 SetFontStyle\cf0 ( \cf6 arialFont\cf0 , \cf2 TTF_STYLE_NORMAL\cf0  );\
+    \
+    \cf4 // Carga de terreno & skybox\cf0 \
+    \cf9 InitTerrain\cf0 ( &\cf6 terrain\cf0 , \cf3 "resources/coastMountain64.raw"\cf0 , \cf3 "textures/grass.png"\cf0 , \cf2 GL_FALSE\cf0 , &\cf6 terrainMtrl\cf0 , \cf5 64\cf0 , \cf5 64\cf0 , \cf5 15.0f\cf0 , \cf5 0.5f\cf0  );\
+    \cf9 InitSkybox\cf0 ( &\cf6 skybox\cf0 , \cf3 "textures/skybox.png"\cf0  );\
+    \
+    \cf4 // Modelos\cf0 \
+    \cf9 LoadModel\cf0 ( \cf3 "models/door.3ds"\cf0 , \cf3 "textures"\cf0 , \cf2 GL_FALSE\cf0 , &\cf6 door\cf0  );\
+    \cf10 glPushMatrix\cf0 ();\
+    \cf10 glScalef\cf0 ( \cf5 0.2f\cf0 , \cf5 0.2f\cf0 , \cf5 0.2f\cf0  );\
+    \cf9 BoundingVolumes\cf0 ( &\cf6 door\cf0 , &\cf6 doorVolumes\cf0 , \cf7 NULL\cf0 , \cf2 GL_FALSE\cf0  );\
+    \cf10 glPopMatrix\cf0 ();\
+    \
+    \cf4 // Texturas\cf0 \
+    \cf6 mapTex\cf0    = \cf9 LoadTexture\cf0 ( \cf3 "textures/grass.png"\cf0  );\
+    \cf6 dotTex\cf0    = \cf9 LoadTexture\cf0 ( \cf3 "textures/blood.png"\cf0  );\
+    \cf6 barTex\cf0    = \cf9 LoadTexture\cf0 ( \cf3 "textures/bark.jpg"\cf0  );\
+    \cf6 scopeTex\cf0  = \cf9 LoadTexture\cf0 ( \cf3 "textures/water6.png"\cf0  );\
+\}\
+\
+\cf4 /*** Liberaci\'f3n de recursos ***/\cf0 \
+\cf7 void\cf0  Free( \cf7 void\cf0  )\
+\{\
+    \cf4 // Liberar texturas\cf0 \
+    \cf10 glDeleteTextures\cf0 ( \cf5 1\cf0 , &\cf6 mapTex\cf0  );\
+    \cf10 glDeleteTextures\cf0 ( \cf5 1\cf0 , &\cf6 dotTex\cf0  );\
+    \cf10 glDeleteTextures\cf0 ( \cf5 1\cf0 , &\cf6 barTex\cf0  );\
+    \cf10 glDeleteTextures\cf0 ( \cf5 1\cf0 , &\cf6 scopeTex\cf0  );\
+    \
+    \cf4 // Liberar Fuente\cf0 \
+    \cf9 CloseFont\cf0 ( \cf6 arialFont\cf0  );\
+    \cf9 FreeFont\cf0 ();\
+    \
+    \cf4 // Liberar el terreno & el skybox\cf0 \
+    \cf9 FreeTerrain\cf0 ( &\cf6 terrain\cf0  );\
+    \cf9 FreeSkybox\cf0 ( &\cf6 skybox\cf0  );\
+    \
+    \cf4 // Liberar Modelos\cf0 \
+    \cf9 FreeModel\cf0 ( &\cf6 door\cf0  );\
+    \
+    \cf4 // \'daltimo\cf0 \
+    \cf9 FreeOpenAL\cf0 ();\
+    \cf9 FreeOpenGL\cf0 ();\
+\}\
+\
+\cf4 /*** Procesamiento de los dispositivos de entrada ***/\cf0 \
+\cf7 void\cf0  Input( \cf7 float\cf0  elapsed )\
+\{\
+    \cf8 SDL_Event\cf0  event;\
+    \cf4 /* Proceso los eventos de input hasta que no haya m\'e1s */\cf0 \
+    \cf7 while\cf0 ( \cf10 SDL_PollEvent\cf0 ( &event ) )\
+    \{\
+        \cf7 switch\cf0 ( event.\cf8 type\cf0  )\
+        \{\
+            \cf7 case\cf0  \cf10 SDL_KEYUP\cf0 :\
+                \cf7 switch\cf0 ( event.\cf8 key\cf0 .\cf8 keysym\cf0 .\cf8 sym\cf0  )\
+            \{\
+                \cf7 case\cf0  \cf10 SDLK_ESCAPE\cf0 :\
+                    \cf6 g_ExitProgram\cf0  = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_F6\cf0 :\
+                    \cf9 CreateScreenshot\cf0 ( \cf3 "Ejercicio"\cf0  );\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_LSHIFT\cf0 :\
+                    \cf6 runState\cf0       = \cf2 GL_FALSE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_w\cf0 :\
+                    \cf6 cam\cf0 .\cf6 walk\cf0       = \cf2 GL_FALSE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_s\cf0 :\
+                    \cf6 cam\cf0 .\cf6 walkinv\cf0    = \cf2 GL_FALSE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_d\cf0 :\
+                    \cf6 cam\cf0 .\cf6 strafe\cf0     = \cf2 GL_FALSE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_a\cf0 :\
+                    \cf6 cam\cf0 .\cf6 strafeinv\cf0  = \cf2 GL_FALSE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_r\cf0 :\
+                    \cf6 zoomIn\cf0         = \cf2 GL_FALSE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_f\cf0 :\
+                    \cf6 zoomOut\cf0        = \cf2 GL_FALSE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 default\cf0 :\
+                    \cf9 PrintError\cf0 ( \cf3 "Unhandled KEYUP event"\cf0 , \cf2 GL_TRUE\cf0  );\
+            \}\
+                \cf7 break\cf0 ;\
+                \
+            \cf7 case\cf0  \cf10 SDL_KEYDOWN\cf0 :\
+                \cf7 switch\cf0 ( event.\cf8 key\cf0 .\cf8 keysym\cf0 .\cf8 sym\cf0  )\
+            \{\
+                \cf7 case\cf0  \cf10 SDLK_ESCAPE\cf0 :\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_F6\cf0 :\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_LSHIFT\cf0 :\
+                    \cf6 runState\cf0       = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_w\cf0 :\
+                    \cf6 cam\cf0 .\cf6 walk\cf0       = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_s\cf0 :\
+                    \cf6 cam\cf0 .\cf6 walkinv\cf0    = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_d\cf0 :\
+                    \cf6 cam\cf0 .\cf6 strafe\cf0     = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_a\cf0 :\
+                    \cf6 cam\cf0 .\cf6 strafeinv\cf0  = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_r\cf0 :\
+                    \cf6 zoomIn\cf0         = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf10 SDLK_f\cf0 :\
+                    \cf6 zoomOut\cf0        = \cf2 GL_TRUE\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 default\cf0 :\
+                    \cf9 PrintError\cf0 ( \cf3 "Unhandled KEYDOWN event"\cf0 , \cf2 GL_TRUE\cf0  );\
+            \}\
+                \cf7 break\cf0 ;\
+                \
+                \cf4 /* Botones del mouse */\cf0 \
+            \cf7 case\cf0  \cf10 SDL_MOUSEBUTTONUP\cf0 :\
+                \cf7 switch\cf0 ( event.\cf8 button\cf0 .\cf8 button\cf0  )\
+            \{\
+                \cf7 case\cf0  \cf2 SDL_BUTTON_LEFT\cf0 :\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf2 SDL_BUTTON_RIGHT\cf0 :\
+                    \cf6 zoomState\cf0  = !\cf6 zoomState\cf0 ;\
+                    \cf7 break\cf0 ;\
+                \cf7 default\cf0 :\
+                    \cf9 PrintError\cf0 ( \cf3 "Unhandled MOUSEBUTTONUP event"\cf0 , \cf2 GL_TRUE\cf0  );\
+            \}\
+                \cf7 break\cf0 ;\
+                \
+            \cf7 case\cf0  \cf10 SDL_MOUSEBUTTONDOWN\cf0 :\
+                \cf7 switch\cf0 ( event.\cf8 button\cf0 .\cf8 button\cf0  )\
+            \{\
+                \cf7 case\cf0  \cf2 SDL_BUTTON_LEFT\cf0 :\
+                    \cf7 break\cf0 ;\
+                \cf7 case\cf0  \cf2 SDL_BUTTON_RIGHT\cf0 :\
+                    \cf7 break\cf0 ;\
+                \cf7 default\cf0 :\
+                    \cf9 PrintError\cf0 ( \cf3 "Unhandled MOUSEBUTTONDOWN event"\cf0 , \cf2 GL_TRUE\cf0  );\
+            \}\
+                \cf7 break\cf0 ;\
+                \
+                \
+                \cf4 /* Movimiento del mouse */\cf0 \
+            \cf7 case\cf0  \cf10 SDL_MOUSEMOTION\cf0 :\
+            \{\
+                \cf4 /* Capturo los movimientos */\cf0 \
+                \cf8 GLfloat\cf0  xrel, yrel;\
+                xrel = (\cf8 GLfloat\cf0 )event.\cf8 motion\cf0 .\cf8 xrel\cf0 ;\
+                yrel = (\cf8 GLfloat\cf0 )event.\cf8 motion\cf0 .\cf8 yrel\cf0 ;\
+                \
+                \cf4 /* Movimiento en eje X */\cf0 \
+                \cf7 if\cf0 ( xrel != \cf5 0\cf0  && xrel < \cf5 100\cf0  && xrel > -\cf5 100\cf0  )\
+                    \cf9 Yaw\cf0 ( &\cf6 cam\cf0 , xrel * \cf6 senMov\cf0  * elapsed, \cf2 GL_TRUE\cf0  );\
+                \
+                \cf4 /* Movimiento en eje Y */\cf0 \
+                \cf7 if\cf0 ( yrel != \cf5 0\cf0  && yrel < \cf5 100\cf0  && yrel > -\cf5 100\cf0  )\
+                    \cf9 Pitch\cf0 ( &\cf6 cam\cf0 , yrel * \cf6 senMov\cf0  * elapsed, \cf2 GL_TRUE\cf0  );\
+            \}\
+                \cf7 break\cf0 ;\
+                \
+            \cf7 default\cf0 :\
+                \cf9 PrintError\cf0 ( \cf3 "Unhandled type of event"\cf0 , \cf2 GL_TRUE\cf0  );\
+        \}\
+        \
+        \cf4 /* Borro el mensaje para evitar procesarlo de nuevo */\cf0 \
+        \cf2 memset\cf0 ( &event, \cf5 0\cf0 , \cf7 sizeof\cf0 (\cf8 SDL_Event\cf0 ) );\
+    \}\
+\}\
+\
+\cf4 /*** Procesamiento de la l\'f3gica del juego ***/\cf0 \
+\cf7 void\cf0  Logic( \cf7 float\cf0  elapsed )\
+\{\
+    \cf4 // FPS\cf0 \
+    \cf2 sprintf\cf0 ( \cf6 fpsText\cf0 , \cf3 "%d fps"\cf0 , \cf9 CalculateFPS\cf0 ( elapsed ));\
+    \
+    \cf4 // Zoom\cf0 \
+    \cf7 if\cf0 ( \cf6 zoomState\cf0  )\
+    \{\
+        \cf7 if\cf0 ( \cf6 zoomIn\cf0  )\
+            \cf6 zoomLevel\cf0  += \cf5 1.0\cf0  * elapsed;\
+        \cf7 if\cf0 ( \cf6 zoomOut\cf0  )\
+            \cf6 zoomLevel\cf0  -= \cf5 1.0f\cf0  * elapsed;\
+        \cf7 if\cf0 ( \cf6 zoomLevel\cf0  > \cf5 3.0f\cf0  )\
+            \cf6 zoomLevel\cf0  = \cf5 3.0f\cf0 ;\
+        \cf7 if\cf0 ( \cf6 zoomLevel\cf0  < \cf5 1.0f\cf0  )\
+            \cf6 zoomLevel\cf0  = \cf5 1.0f\cf0 ;\
+    \}\
+    \
+    \cf4 // Ox\'edgeno\cf0 \
+    \cf7 if\cf0 ( \cf6 runState\cf0  && !\cf6 restState\cf0  )      \cf4 // Corriendo y no descansando\cf0 \
+        \cf6 runTime\cf0  -= elapsed;           \cf4 // Ox\'edgeno decrece\cf0 \
+    \cf7 else\cf0                               \cf4 // Sin correo o descansando\cf0 \
+        \cf6 runTime\cf0  += \cf5 0.2\cf0  * elapsed;     \cf4 // Ox\'edgeno crece\cf0 \
+    \
+    \cf7 if\cf0 ( \cf6 runTime\cf0  < \cf5 0.0f\cf0  || \cf6 restState\cf0  ) \cf4 // Ox\'edgeno agotado o descansando\cf0 \
+        \cf6 runState\cf0  = \cf2 GL_FALSE\cf0 ;          \cf4 // No se puede correr\cf0 \
+    \cf7 if\cf0 ( \cf6 runTime\cf0  < \cf5 0.0f\cf0  )              \cf4 // Ox\'edgeno agotado\cf0 \
+    \{\
+        \cf6 restState\cf0  = \cf2 GL_TRUE\cf0 ;          \cf4 // Debe descanzar\cf0 \
+        \cf6 runTime\cf0  = \cf5 0.0f\cf0 ;\
+    \}\
+    \cf7 if\cf0 ( \cf6 runTime\cf0  > \cf6 runLimit\cf0  )           \cf4 // Ox\'edgeno reestablecido\cf0 \
+    \{\
+        \cf6 restState\cf0  = \cf2 GL_FALSE\cf0 ;          \cf4 // No m\'e1s descanso\cf0 \
+        \cf6 runTime\cf0    = \cf6 runLimit\cf0 ;\
+    \}\
+    \
+    \cf4 // C\'e1mara\cf0 \
+    \cf7 if\cf0 ( \cf6 cam\cf0 .\cf6 walk\cf0  )\
+        \cf9 Walk\cf0 ( &\cf6 cam\cf0 , \cf6 velMov\cf0  * (\cf6 runState\cf0 ? \cf5 2.0f\cf0  : \cf5 1.0f\cf0 ) * elapsed, \cf2 GL_TRUE\cf0  );\
+    \cf7 if\cf0 ( \cf6 cam\cf0 .\cf6 walkinv\cf0  )\
+        \cf9 Walk\cf0 ( &\cf6 cam\cf0 , -\cf6 velMov\cf0  * elapsed, \cf2 GL_TRUE\cf0  );\
+    \cf7 if\cf0 ( \cf6 cam\cf0 .\cf6 strafe\cf0  )\
+        \cf9 Strafe\cf0 ( &\cf6 cam\cf0 , \cf6 velMov\cf0  * elapsed, \cf2 GL_TRUE\cf0  );\
+    \cf7 if\cf0 ( \cf6 cam\cf0 .\cf6 strafeinv\cf0  )\
+        \cf9 Strafe\cf0 ( &\cf6 cam\cf0 , -\cf6 velMov\cf0  * elapsed, \cf2 GL_TRUE\cf0  );\
+    \
+    \cf4 // Altura del terreno\cf0 \
+    \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 y\cf0  = \cf9 GetHeight\cf0 ( &\cf6 terrain\cf0 , \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 x\cf0 , \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 z\cf0  ) + \cf5 5.0f\cf0 ;\
+    \
+    \cf4 // Posici\'f3n en mapa\cf0 \
+    \cf4 // InicioMapa + Porcentaje * Tama\'f1oMapa (X,Z)\cf0 \
+    \cf6 posXTerrain\cf0  = (\cf2 WIDTH\cf0  - \cf5 0.2\cf0  * \cf2 WIDTH\cf0 ) + \cf2 WIDTH\cf0   * \cf5 0.2\cf0  * ( \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 x\cf0  / ( (\cf5 64\cf0 -\cf5 1\cf0 ) * \cf5 15.0f\cf0  ) );\
+    \cf6 posZTerrain\cf0  = \cf5 0\cf0                      + \cf2 HEIGHT\cf0  * \cf5 0.2\cf0  * ( \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 z\cf0  / ( (\cf5 64\cf0 -\cf5 1\cf0 ) * \cf5 15.0f\cf0  ) );\
+    \
+    \cf4 // Posicion de la puerta\cf0 \
+    \cf7 if\cf0 ( !\cf6 doorState\cf0  )\
+    \{\
+        \cf6 VECTOR\cf0  disp = \{ \cf5 50.0f\cf0 , \cf9 GetHeight\cf0 ( &\cf6 terrain\cf0 , \cf5 50.0f\cf0 , \cf5 570.0f\cf0  ), \cf5 570.0f\cf0  \};\
+        \cf9 UpdateVolumes\cf0 ( &\cf6 doorVolumes\cf0 , disp );\
+        \cf6 doorState\cf0  = !\cf6 doorState\cf0 ;\
+    \}\
+\}\
+\
+\cf4 /*** Procesamiento de cada cuadro de sonido ***/\cf0 \
+\cf7 void\cf0  Sound( \cf7 float\cf0  elapsed )\
+\{\
+\}\
+\
+\cf4 /*** Procesamiento de cada cuadro ***/\cf0 \
+\cf7 void\cf0  Video( \cf7 float\cf0  elapsed )\
+\{\
+    \cf4 /* Limpio la pantalla */\cf0 \
+    \cf10 glClear\cf0 ( \cf2 GL_COLOR_BUFFER_BIT\cf0  | \cf2 GL_DEPTH_BUFFER_BIT\cf0  | \cf2 GL_STENCIL_BUFFER_BIT\cf0  );\
+    \
+    \cf4 /* Perspectiva */\cf0 \
+    \cf10 glMatrixMode\cf0 ( \cf2 GL_PROJECTION\cf0  );\
+    \cf10 glLoadIdentity\cf0 ();\
+    \cf10 gluPerspective\cf0 ( \cf5 45.0f\cf0  / (\cf6 zoomState\cf0 ? \cf6 zoomLevel\cf0  : \cf5 1.0f\cf0 ), \cf4 // \'c1ngulo de visi\'f3n vertical\cf0 \
+                   (\cf8 GLfloat\cf0 )\cf2 WIDTH\cf0  / (\cf8 GLfloat\cf0 )\cf2 HEIGHT\cf0 ,       \cf4 // Aspecto\cf0 \
+                   \cf5 1.0f\cf0 ,                                   \cf4 // Plano cercano\cf0 \
+                   \cf5 1500.0f\cf0  );                              \cf4 // Plano lejano\cf0 \
+    \
+    \cf4 /* C\'e1mara */\cf0 \
+    \cf10 glMatrixMode\cf0 ( \cf2 GL_MODELVIEW\cf0  );\
+    \cf10 glLoadIdentity\cf0 ();\
+    \cf6 VECTOR\cf0  dir = \cf9 SumVector\cf0 ( \cf6 cam\cf0 .\cf6 pos\cf0 , \cf6 cam\cf0 .\cf6 look\cf0  );\
+    \cf10 gluLookAt\cf0 ( \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 x\cf0 , \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 y\cf0 , \cf6 cam\cf0 .\cf6 pos\cf0 .\cf6 z\cf0 ,   \cf4 // Posici\'f3n\cf0 \
+              dir.\cf6 x\cf0     , dir.\cf6 y\cf0     , dir.\cf6 z\cf0     ,   \cf4 // Direcci\'f3n\cf0 \
+              \cf5 0.0f\cf0      , \cf5 1.0f\cf0      ,  \cf5 0.0f\cf0     );  \cf4 // Arriba\cf0 \
+    \
+    \cf4 /* Luz */\cf0 \
+    \cf10 glPushMatrix\cf0 ();\
+    \cf9 SetDirLight\cf0 ( \cf2 GL_LIGHT0\cf0 , &\cf6 dirLight\cf0  );\
+    \cf10 glEnable\cf0 ( \cf2 GL_LIGHT0\cf0  );\
+    \cf10 glPopMatrix\cf0 ();\
+    \
+    \cf4 /* Door */\cf0 \
+    \cf10 glPushMatrix\cf0 ();\
+    \cf10 glMultTransposeMatrixf\cf0 ( \cf6 doorVolumes\cf0 .\cf6 matrix\cf0  );\
+    \cf10 glCallList\cf0 ( \cf6 door\cf0 .\cf6 modelList\cf0  );\
+    \cf10 glPopMatrix\cf0 ();\
+    \
+    \cf4 /* Terreno */\cf0 \
+    \cf10 glPushMatrix\cf0 ();\
+    \cf9 SetMaterial\cf0 ( &\cf6 terrainMtrl\cf0  );\
+    \cf10 glBindTexture\cf0 ( \cf2 GL_TEXTURE_2D\cf0 , \cf6 terrain\cf0 .\cf6 textureID\cf0  );\
+    \cf10 glCallList\cf0 ( \cf6 terrain\cf0 .\cf6 terrainList\cf0  );\
+    \cf10 glPopMatrix\cf0 ();\
+    \
+    \cf4 /* Skybox */\cf0 \
+    \cf10 glPushMatrix\cf0 ();\
+    \cf9 RenderSkybox\cf0 ( &\cf6 skybox\cf0 , &\cf6 skyboxBox\cf0 , &\cf6 skyboxColor\cf0  );\
+    \cf10 glPopMatrix\cf0 ();\
+    \
+    \cf4 /* HUD */\cf0 \
+    \cf9 Begin2D\cf0 ( \cf2 WIDTH\cf0 , \cf2 HEIGHT\cf0  );\
+    \cf4 // Scope\cf0 \
+    \cf7 if\cf0 ( \cf6 zoomState\cf0  )\
+        \cf9 Render2DTexture\cf0 ( \cf6 scopeTex\cf0 , \cf5 0\cf0 , \cf5 0\cf0 , \cf2 WIDTH\cf0 , \cf2 HEIGHT\cf0  );\
+    \cf7 else\cf0 \
+    \{\
+        \cf4 // Mapa\cf0 \
+        \cf9 Render2DTexture\cf0 ( \cf6 mapTex\cf0 , \cf2 WIDTH\cf0  - \cf5 0.2\cf0  * \cf2 WIDTH\cf0 , \cf5 0\cf0 , \cf2 WIDTH\cf0 , \cf5 0.2\cf0  * \cf2 HEIGHT\cf0  );\
+        \cf4 // Barra O2\cf0 \
+        \cf9 Render2DTexture\cf0 ( \cf6 barTex\cf0 , \cf9 GetTextWidth\cf0 ( \cf6 arialFont\cf0 , \cf3 "O2:"\cf0 ), \cf9 GetFontLineSkip\cf0 ( \cf6 arialFont\cf0 ) , \cf9 GetTextWidth\cf0 ( \cf6 arialFont\cf0 , \cf3 "O2:"\cf0 ) + (\cf2 WIDTH\cf0  * \cf5 0.2\cf0 ) * \cf6 runTime\cf0 /\cf6 runLimit\cf0 ,\
+                        \cf5 2\cf0  * \cf9 GetFontLineSkip\cf0 ( \cf6 arialFont\cf0 ) );\
+        \cf4 // Posici\'f3n\cf0 \
+        \cf9 Render2DTexture\cf0 ( \cf6 dotTex\cf0 ,\
+                        \cf6 posXTerrain\cf0 , \cf6 posZTerrain\cf0 ,\
+                        \cf6 posXTerrain\cf0  + \cf2 WIDTH\cf0  * \cf5 0.01\cf0 , \cf6 posZTerrain\cf0  + \cf2 HEIGHT\cf0  * \cf5 0.01\cf0  );\
+    \}\
+    \cf9 End2D\cf0 ();\
+    \
+    \cf4 /* Texto */\cf0 \
+    \cf9 RenderText\cf0 ( \cf6 fpsText\cf0 , \cf6 arialFont\cf0 , \cf5 0\cf0 , \cf5 0\cf0 , &\cf6 fontColor\cf0 , \cf2 GL_FALSE\cf0  );\
+    \cf9 RenderText\cf0 ( \cf3 "O2:"\cf0 , \cf6 arialFont\cf0 , \cf5 0\cf0 , \cf9 GetFontLineSkip\cf0 ( \cf6 arialFont\cf0  ), &\cf6 fontColor\cf0 , \cf2 GL_FALSE\cf0  );\
+    \
+    \cf4 /* Ejecutar comandos en cola */\cf0 \
+    \cf10 glFlush\cf0 ();\
+    \
+    \cf4 /* BackBuffer=FrontBuffer(flip) */\cf0 \
+    \cf10 SDL_GL_SwapBuffers\cf0 ();\
+\}\
+\
+\cf4 /*** Loop ***/\cf0 \
+\cf7 void\cf0  Loop( \cf7 float\cf0  elapsed )\
+\{\
+    \cf4 /* Input, L\'f3gica, Sonido y Video */\cf0 \
+    \cf9 Input\cf0 ( elapsed );\
+    \cf9 Logic\cf0 ( elapsed );\
+    \cf9 Sound\cf0 ( elapsed );\
+    \cf9 Video\cf0 ( elapsed );\
+\}\
+}
